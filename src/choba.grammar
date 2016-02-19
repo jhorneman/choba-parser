@@ -1,0 +1,177 @@
+%lex
+
+// We don't care about the case of keywords (or anything else).
+%options case-insensitive
+
+%x inside_cmd
+
+%%
+
+<INITIAL>"\\"(?="{")"{"             yytext = '{'; return 'raw';
+<INITIAL>"\\"                       yytext = '\\'; return 'raw';
+<INITIAL>"{"                        this.pushState('inside_cmd'); yytext = ''; return 'command_start';
+<INITIAL>[^\x00\\{]+                return 'raw';
+
+<inside_cmd>\s+                     /* skip */
+
+<inside_cmd>"scene"\b               return 'scene_keyword';
+<inside_cmd>"tags"\b                return 'tags_keyword';
+<inside_cmd>"content"\b             return 'content_keyword';
+<inside_cmd>"endScene"\b            return 'endScene_keyword';
+<inside_cmd>"endContent"\b          return 'endContent_keyword';
+
+<inside_cmd>"leadin"\b              return 'leadin_keyword';
+<inside_cmd>"endLeadin"\b           return 'endleadin_keyword';
+
+<inside_cmd>"injectOption"\b        return 'inject_option_keyword';
+<inside_cmd>"injectBlock"\b         return 'inject_block_keyword';
+
+<inside_cmd>"if"\b                  return 'if_keyword';
+<inside_cmd>"else"\b                return 'else_keyword';
+<inside_cmd>"endif"\b               return 'endif_keyword';
+
+<inside_cmd>"goto"\b                return 'goto_keyword';
+<inside_cmd>"endgoto"\b             return 'endgoto_keyword';
+
+<inside_cmd>"goto"\b                return 'goto_keyword';
+<inside_cmd>"endgoto"\b             return 'endgoto_keyword';
+
+<inside_cmd>[0-9]+                  return 'literal_number';
+<inside_cmd>'"'[^\x00\""]+'"'       return 'literal_string';
+
+<inside_cmd>"("                     return 'open_parens';
+<inside_cmd>")"                     return 'close_parens';
+
+<inside_cmd>"!"                     return 'not';
+<inside_cmd>"not"                   return 'not';
+
+<inside_cmd>"+"                     yytext = 'add'; return yytext;
+<inside_cmd>"-"                     yytext = 'subtract'; return yytext;
+
+<inside_cmd>">"                     yytext = 'gt'; return yytext;
+<inside_cmd>"<"                     yytext = 'lt'; return yytext;
+<inside_cmd>"=="                    yytext = 'eq'; return yytext;
+<inside_cmd>">="                    yytext = 'gteq'; return yytext;
+<inside_cmd>"<="                    yytext = 'lteq'; return yytext;
+
+<inside_cmd>"or"                    return 'or';
+<inside_cmd>"and"                   return 'and';
+
+<inside_cmd>"="                     return 'assign';
+
+// This must be at the end so keywords get picked up first.
+<inside_cmd>[a-zA-Z0-9\-_]+         return 'identifier';
+
+<inside_cmd>"}"\n?                  this.popState(); yytext = ''; return 'command_end';
+
+<*><<EOF>>                          return 'eof';
+
+/lex
+
+%start file
+
+%%
+//
+
+// A file consists of zero or more scenes, with optional (and ignored) texts inbetween.
+file: optional_text_between_scenes scenes eof { return $2; }
+    | optional_text_between_scenes eof { return {}; };
+
+scenes : scenes scene optional_text_between_scenes { $$[$2.id] = $2; delete $2.id; } |
+    scene optional_text_between_scenes { $$ = {}; $$[$1.id] = $1; delete $1.id; };
+
+optional_text_between_scenes : raw_blocks | ;
+raw_blocks : raw_blocks raw | raw;
+
+// A scene consists of multiple high-level blocks.
+scene : scene_cmd scene_blocks end_scene_cmd
+    { $$ = Object.assign({ id: $1, tags: [], leadIn: [], content: [] }, $2); };
+
+scene_cmd : command_start scene_keyword identifier command_end { $$ = $3; };
+end_scene_cmd : command_start endScene_keyword command_end;
+
+scene_blocks : scene_blocks command_start scene_block { $$ = Object.assign($1, $3); }
+    | command_start scene_block { $$ = $2; };
+
+// Scene blocks can have the following types:
+scene_block : tag_block
+    | leadin_block
+    | content_block;
+
+// Tag blocks contain 0 or more tags.
+tag_block : tags_keyword tags command_end { $$ = { tags: $2 }; }
+    | tags_keyword command_end { $$ = { tags: [] }; };
+
+tags : tags identifier { $$ = $1; $$.push($2); }
+    | identifier { $$ = [ $1 ]; };
+
+// A lead-in block contains content.
+leadin_block : leadin_keyword command_end content command_start endleadin_keyword command_end
+    { $$ = { leadIn : $3 }; };
+
+// A content block contains content.
+content_block: content_keyword command_end content end_content_cmd { $$ = { content: ['seq', $3] }; }
+    | content_keyword command_end end_content_cmd { $$ = { content: [] }; };
+
+end_content_cmd : command_start endContent_keyword command_end;
+
+// Content is one or more expressions or raw text blocks.
+content : content raw_or_expression { $$ = $1; $$.push($2); }
+    | raw_or_expression { $$ = [$1] };
+
+// Raw text, expressions, assignments, or commands.
+raw_or_expression : raw { $$ = ['text', $1]; }
+    | var_or_set
+    | if_command
+    | goto_command
+    | inject_command;
+
+// Either directly evaluate an expression, or assign something to a variable.
+var_or_set : command_start expression command_end { $$ = ['var', $2]; }
+    | command_start identifier assign expression command_end { $$ = ['set', $2, $4]; };
+
+// Chain of expression types.
+// The closer to the primary expression, the higher the precedence.
+// Based on C grammar from http://www.quut.com/c/ANSI-C-grammar-y.html#expression.
+primary_expression : identifier { $$ = ['var', $1]; }
+    | literal_number { $$ = ['literal', {type: 'integer', value: Number($1)} ]; }
+    | literal_string { $$ = ['literal', {type: 'string', value: $1.slice(1, -1)} ]; }
+    | open_parens expression close_parens { $$ =  $2; };
+
+unary_expression : primary_expression
+    | not unary_expression { $$ = ['eq', $2, { type: 'boolean', value: false }]; };
+
+additive_expression : unary_expression
+    | additive_expression add unary_expression { $$ = [$2, $1, $3]; }
+    | additive_expression subtract unary_expression { $$ = [$2, $1, $3]; };
+
+relational_expression : additive_expression
+    | relational_expression gt additive_expression { $$ = [$2, $1, $3]; }
+    | relational_expression lt additive_expression { $$ = [$2, $1, $3]; }
+    | relational_expression gteq additive_expression { $$ = [$2, $1, $3]; }
+    | relational_expression lteq additive_expression { $$ = [$2, $1, $3]; };
+
+equality_expression : relational_expression
+    | equality_expression eq relational_expression { $$ = [$2, $1, $3]; };
+
+logical_and_expression : equality_expression
+    | logical_and_expression and equality_expression { $$ = [$2, $1, $3]; };
+
+logical_or_expression : logical_and_expression
+    | logical_or_expression or logical_and_expression { $$ = [$2, $1, $3]; };
+
+expression : logical_or_expression;
+
+// Various commands.
+if_command : command_start if_keyword expression command_end content command_start endif_keyword command_end
+    { $$ = ['if', $3, $5]; }
+    | command_start if_keyword expression command_end content command_start else_keyword command_end content command_start endif_keyword command_end
+    { $$ = ['if', $3, $5, $9]; };
+
+goto_command : command_start goto_keyword identifier command_end raw_or_expression command_start endgoto_keyword command_end
+    { $$ = ['addOption', $5, 'goto', $3]; };
+
+inject_command : command_start inject_keyword tags command_end
+    { $$ = [$2].concat($3); };
+
+inject_keyword : inject_option_keyword | inject_block_keyword;

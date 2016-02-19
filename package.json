@@ -1,0 +1,26 @@
+{
+  "name": "choba-parser",
+  "version": "0.0.1",
+  "description": "A parser to create data for Choba, the choice-based interactive fiction engine.",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jhorneman/choba-parser.git"
+  },
+  "keywords": [
+    "interactive-fiction"
+  ],
+  "authors": [
+    "Jurie Horneman <jurie@jurie.org> (http://www.intelligent-artifice.com)"
+  ],
+  "license": "MIT",
+  "url": "https://github.com/jhorneman/choba-parser/blob/master/LICENSE",
+  "bugs": {
+    "url": "https://github.com/jhorneman/choba-parser/issues"
+  },
+  "homepage": "https://github.com/jhorneman/choba-parser",
+  "devDependencies": {
+    "jison": "^0.4.17",
+    "nomnom": "^1.8.1"
+  }
+}
