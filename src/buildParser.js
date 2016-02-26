@@ -23,7 +23,7 @@ console.log('Loaded grammar file...');
 // Build parser.
 let jison = require('jison');
 let parser = new jison.Parser(grammar);
-let parserSource = parser.generate();   // Can pass options but default is CommonJS.
+let parserSource = parser.generate({moduleMain: function() {}});
 
 console.log('Built parser...');
 
