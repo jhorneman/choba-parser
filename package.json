@@ -2,7 +2,9 @@
   "name": "choba-parser",
   "version": "0.0.1",
   "description": "A parser to create data for Choba, the choice-based interactive fiction engine.",
-  "scripts": {},
+  "scripts": {
+    "buildParser": "node src/buildParser.js src/choba.grammar dist/chobaParser.js"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/jhorneman/choba-parser.git"
