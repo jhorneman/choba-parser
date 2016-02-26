@@ -110,7 +110,7 @@ leadin_block : leadin_keyword command_end content command_start endleadin_keywor
     { $$ = { leadIn : $3 }; };
 
 // A content block contains content.
-content_block: content_keyword command_end content end_content_cmd { $$ = { content: ['seq', $3] }; }
+content_block: content_keyword command_end content end_content_cmd { $$ = { content: ['seq'].concat($3) }; }
     | content_keyword command_end end_content_cmd { $$ = { content: [] }; };
 
 end_content_cmd : command_start endContent_keyword command_end;
