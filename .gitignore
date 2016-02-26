@@ -3,8 +3,7 @@
 .idea
 *.sublime-project
 *.sublime-workspace
-.env
-*.dump
 node_modules
 coverage
 lib
+dist
