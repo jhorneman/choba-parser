@@ -164,9 +164,9 @@ expression : logical_or_expression;
 
 // Various commands.
 if_command : command_start if_keyword expression command_end content command_start endif_keyword command_end
-    { $$ = ['if', $3, $5]; }
+    { $$ = ['if', $3].concat($5); }
     | command_start if_keyword expression command_end content command_start else_keyword command_end content command_start endif_keyword command_end
-    { $$ = ['if', $3, $5, $9]; };
+    { $$ = ['if', $3].concat($5, $9); };
 
 goto_command : command_start goto_keyword identifier command_end raw_or_expression command_start endgoto_keyword command_end
     { $$ = ['addOption', $5, 'goto', $3]; };
